@@ -1,3 +1,4 @@
-osacript /Users/sigitp/message_count_log.scpt
+## Usage
+`osacript /Users/sigitp/message_count_log.scpt`
 
-osacript /Users/sigitp/export_all_eml_enhanced.scpt
+`osacript /Users/sigitp/export_all_eml_enhanced.scpt`
