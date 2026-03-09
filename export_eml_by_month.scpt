@@ -52,84 +52,44 @@ on run argv
 			my logBoth("Exporting ALL messages (no date filter)", logFile)
 		end if
 
-		-- Process all folders across all exchange accounts
-		set accts to exchange accounts
-		repeat with acct in accts
-			set acctName to name of acct
-			set folderList to mail folders of acct
-			repeat with f in folderList
+		set allMessages to every message
+		set totalCount to count of allMessages
+		my logBoth("Total messages found: " & totalCount, logFile)
+
+		repeat with i from 1 to totalCount
+			set totalScanned to totalScanned + 1
+			try
+				set currentMessage to item i of allMessages
+				set msgDate to time received of currentMessage
+				set msgYear to year of msgDate
+				set msgMonth to month of msgDate as integer
+				set msgYM to msgYear * 100 + msgMonth
+
+				-- Get folder name
 				try
-					set folderName to name of f
-					set folderMessages to messages of f
-					set folderCount to count of folderMessages
-					if folderCount > 0 then
-						my logBoth("Scanning folder: " & acctName & "/" & folderName & " (" & folderCount & " messages)", logFile)
-					end if
-
-					repeat with i from 1 to folderCount
-						set totalScanned to totalScanned + 1
-						try
-							set currentMessage to item i of folderMessages
-							set msgDate to time received of currentMessage
-							set msgYear to year of msgDate
-							set msgMonth to month of msgDate as integer
-							set msgYM to msgYear * 100 + msgMonth
-
-							if msgYM < startYM or msgYM > endYM then
-								set skippedCount to skippedCount + 1
-							else
-								set exportResult to my exportMessage(currentMessage, totalScanned, msgYear, msgMonth, folderName, baseFolder, logFile)
-								if exportResult then
-									set exportedCount to exportedCount + 1
-								else
-									set failedCount to failedCount + 1
-								end if
-							end if
-
-							if (totalScanned mod 500) = 0 then
-								my logBoth("Scanned " & totalScanned & " (" & exportedCount & " exported, " & skippedCount & " skipped)", logFile)
-							end if
-						on error msgErr
-							set failedCount to failedCount + 1
-							my logBoth("ERROR message " & totalScanned & " in " & folderName & ": " & msgErr, logFile)
-						end try
-					end repeat
+					set folderName to name of (folder of currentMessage)
+				on error
+					set folderName to "Unknown"
 				end try
-			end repeat
-		end repeat
 
-		-- Also process default inbox for non-exchange accounts
-		try
-			set inboxMessages to messages of inbox
-			set inboxCount to count of inboxMessages
-			if inboxCount > 0 then
-				my logBoth("Scanning folder: Default/Inbox (" & inboxCount & " messages)", logFile)
-			end if
-			repeat with i from 1 to inboxCount
-				set totalScanned to totalScanned + 1
-				try
-					set currentMessage to item i of inboxMessages
-					set msgDate to time received of currentMessage
-					set msgYear to year of msgDate
-					set msgMonth to month of msgDate as integer
-					set msgYM to msgYear * 100 + msgMonth
-
-					if msgYM < startYM or msgYM > endYM then
-						set skippedCount to skippedCount + 1
+				if msgYM < startYM or msgYM > endYM then
+					set skippedCount to skippedCount + 1
+					if (totalScanned mod 500) = 0 then
+						my logBoth("Scanned " & totalScanned & "/" & totalCount & " (" & exportedCount & " exported, " & skippedCount & " skipped)", logFile)
+					end if
+				else
+					set exportResult to my exportMessage(currentMessage, totalScanned, msgYear, msgMonth, folderName, baseFolder, logFile)
+					if exportResult then
+						set exportedCount to exportedCount + 1
 					else
-						set exportResult to my exportMessage(currentMessage, totalScanned, msgYear, msgMonth, "Inbox", baseFolder, logFile)
-						if exportResult then
-							set exportedCount to exportedCount + 1
-						else
-							set failedCount to failedCount + 1
-						end if
+						set failedCount to failedCount + 1
 					end if
-				on error msgErr
-					set failedCount to failedCount + 1
-					my logBoth("ERROR message " & totalScanned & " in Inbox: " & msgErr, logFile)
-				end try
-			end repeat
-		end try
+				end if
+			on error msgErr
+				set failedCount to failedCount + 1
+				my logBoth("ERROR message " & totalScanned & ": " & msgErr, logFile)
+			end try
+		end repeat
 
 		set summary to "Done! " & exportedCount & " exported, " & failedCount & " failed, " & skippedCount & " skipped (out of " & totalScanned & " scanned)"
 		my logBoth(summary, logFile)
