@@ -16,14 +16,12 @@ on run argv
 	set endMonth to 0
 
 	if argCount = 2 then
-		-- Single month
 		set filterByDate to true
 		set startYear to (item 1 of argv) as integer
 		set startMonth to (item 2 of argv) as integer
 		set endYear to startYear
 		set endMonth to startMonth
 	else if argCount = 4 then
-		-- Range
 		set filterByDate to true
 		set startYear to (item 1 of argv) as integer
 		set startMonth to (item 2 of argv) as integer
@@ -31,85 +29,115 @@ on run argv
 		set endMonth to (item 4 of argv) as integer
 	end if
 
+	if filterByDate then
+		set startYM to startYear * 100 + startMonth
+		set endYM to endYear * 100 + endMonth
+	else
+		set startYM to 0
+		set endYM to 999999
+	end if
+
 	-- Clear log
 	do shell script "echo 'Starting export...' > " & quoted form of logFile
 
-	tell application "Microsoft Outlook"
-		set allMessages to every message
-		set totalCount to count of allMessages
-		set exportedCount to 0
-		set skippedCount to 0
-		set failedCount to 0
+	set exportedCount to 0
+	set skippedCount to 0
+	set failedCount to 0
+	set totalScanned to 0
 
-		my writeLog("Total messages in mailbox: " & totalCount, logFile)
+	tell application "Microsoft Outlook"
 		if filterByDate then
-			my writeLog("Filtering: " & startYear & "-" & my zeroPad(startMonth) & " to " & endYear & "-" & my zeroPad(endMonth), logFile)
+			my logBoth("Filtering: " & startYear & "-" & my zeroPad(startMonth) & " to " & endYear & "-" & my zeroPad(endMonth), logFile)
 		else
-			my writeLog("Exporting ALL messages (no date filter)", logFile)
+			my logBoth("Exporting ALL messages (no date filter)", logFile)
 		end if
 
-		repeat with i from 1 to totalCount
-			try
-				set currentMessage to item i of allMessages
+		-- Process all folders across all exchange accounts
+		set accts to exchange accounts
+		repeat with acct in accts
+			set acctName to name of acct
+			set folderList to mail folders of acct
+			repeat with f in folderList
+				try
+					set folderName to name of f
+					set folderMessages to messages of f
+					set folderCount to count of folderMessages
+					if folderCount > 0 then
+						my logBoth("Scanning folder: " & acctName & "/" & folderName & " (" & folderCount & " messages)", logFile)
+					end if
 
-				-- Get received date
-				set msgDate to time received of currentMessage
-				set msgYear to year of msgDate
-				set msgMonth to month of msgDate as integer
+					repeat with i from 1 to folderCount
+						set totalScanned to totalScanned + 1
+						try
+							set currentMessage to item i of folderMessages
+							set msgDate to time received of currentMessage
+							set msgYear to year of msgDate
+							set msgMonth to month of msgDate as integer
+							set msgYM to msgYear * 100 + msgMonth
 
-				-- Date filter check
-				if filterByDate then
+							if msgYM < startYM or msgYM > endYM then
+								set skippedCount to skippedCount + 1
+							else
+								set exportResult to my exportMessage(currentMessage, totalScanned, msgYear, msgMonth, folderName, baseFolder, logFile)
+								if exportResult then
+									set exportedCount to exportedCount + 1
+								else
+									set failedCount to failedCount + 1
+								end if
+							end if
+
+							if (totalScanned mod 500) = 0 then
+								my logBoth("Scanned " & totalScanned & " (" & exportedCount & " exported, " & skippedCount & " skipped)", logFile)
+							end if
+						on error msgErr
+							set failedCount to failedCount + 1
+							my logBoth("ERROR message " & totalScanned & " in " & folderName & ": " & msgErr, logFile)
+						end try
+					end repeat
+				end try
+			end repeat
+		end repeat
+
+		-- Also process default inbox for non-exchange accounts
+		try
+			set inboxMessages to messages of inbox
+			set inboxCount to count of inboxMessages
+			if inboxCount > 0 then
+				my logBoth("Scanning folder: Default/Inbox (" & inboxCount & " messages)", logFile)
+			end if
+			repeat with i from 1 to inboxCount
+				set totalScanned to totalScanned + 1
+				try
+					set currentMessage to item i of inboxMessages
+					set msgDate to time received of currentMessage
+					set msgYear to year of msgDate
+					set msgMonth to month of msgDate as integer
 					set msgYM to msgYear * 100 + msgMonth
-					set startYM to startYear * 100 + startMonth
-					set endYM to endYear * 100 + endMonth
+
 					if msgYM < startYM or msgYM > endYM then
 						set skippedCount to skippedCount + 1
-						if (i mod 500) = 0 then
-							display notification "Scanning " & i & "/" & totalCount & " (" & exportedCount & " exported, " & skippedCount & " skipped)"
-						end if
-						-- skip this message, outside date range
 					else
-						-- Export this message
-						set exportResult to my exportMessage(currentMessage, i, msgYear, msgMonth, baseFolder, logFile)
+						set exportResult to my exportMessage(currentMessage, totalScanned, msgYear, msgMonth, "Inbox", baseFolder, logFile)
 						if exportResult then
 							set exportedCount to exportedCount + 1
 						else
 							set failedCount to failedCount + 1
 						end if
-
-						if (exportedCount mod 100) = 0 and exportedCount > 0 then
-							display notification "Exported " & exportedCount & " (" & i & "/" & totalCount & " scanned)"
-							my writeLog("Progress: " & i & "/" & totalCount & " scanned, " & exportedCount & " exported", logFile)
-						end if
 					end if
-				else
-					-- No filter, export all
-					set exportResult to my exportMessage(currentMessage, i, msgYear, msgMonth, baseFolder, logFile)
-					if exportResult then
-						set exportedCount to exportedCount + 1
-					else
-						set failedCount to failedCount + 1
-					end if
+				on error msgErr
+					set failedCount to failedCount + 1
+					my logBoth("ERROR message " & totalScanned & " in Inbox: " & msgErr, logFile)
+				end try
+			end repeat
+		end try
 
-					if (exportedCount mod 100) = 0 and exportedCount > 0 then
-						display notification "Exported " & exportedCount & " of " & totalCount
-						my writeLog("Progress: " & exportedCount & "/" & totalCount & " exported", logFile)
-					end if
-				end if
-
-			on error mainErr
-				set failedCount to failedCount + 1
-				my writeLog("ERROR message " & i & ": " & mainErr, logFile)
-			end try
-		end repeat
-
-		set summary to "Done! " & exportedCount & " exported, " & failedCount & " failed, " & skippedCount & " skipped (out of " & totalCount & " total)"
-		my writeLog(summary, logFile)
+		set summary to "Done! " & exportedCount & " exported, " & failedCount & " failed, " & skippedCount & " skipped (out of " & totalScanned & " scanned)"
+		my logBoth(summary, logFile)
 		display dialog summary
 	end tell
 end run
 
-on exportMessage(currentMessage, idx, msgYear, msgMonth, baseFolder, logFile)
+on exportMessage(currentMessage, idx, msgYear, msgMonth, folderName, baseFolder, logFile)
 	tell application "Microsoft Outlook"
 		-- Build output folder: baseFolder/YYYY/MM/
 		set monthFolder to baseFolder & (msgYear as string) & "/" & my zeroPad(msgMonth) & "/"
@@ -125,21 +153,24 @@ on exportMessage(currentMessage, idx, msgYear, msgMonth, baseFolder, logFile)
 		end try
 
 		set cleanSubject to my cleanFileName(messageSubject)
-		set fileName to cleanSubject & "_" & messageID & ".eml"
+		set cleanFolder to my cleanFileName(folderName)
+		set fileName to cleanFolder & "_" & cleanSubject & "_" & messageID & ".eml"
 		set hfsPath to POSIX file (monthFolder & fileName) as string
 
 		-- Method 1: save as eml
 		try
 			save currentMessage in file hfsPath as "eml"
+			my logBoth("  [" & idx & "] " & fileName, logFile)
 			return true
 		end try
 
 		-- Method 2: save as msg, rename
 		try
-			set msgFileName to cleanSubject & "_" & messageID & ".msg"
+			set msgFileName to cleanFolder & "_" & cleanSubject & "_" & messageID & ".msg"
 			set msgHfsPath to POSIX file (monthFolder & msgFileName) as string
 			save currentMessage in file msgHfsPath as "msg"
 			do shell script "mv " & quoted form of (monthFolder & msgFileName) & " " & quoted form of (monthFolder & fileName)
+			my logBoth("  [" & idx & "] (via msg) " & fileName, logFile)
 			return true
 		end try
 
@@ -153,9 +184,10 @@ on exportMessage(currentMessage, idx, msgYear, msgMonth, baseFolder, logFile)
 			set emailText to emailText & "Date: " & messageDate & return & return
 			set emailText to emailText & messageContent
 			do shell script "cat > " & quoted form of (monthFolder & fileName) & " <<'EMLEOF'" & return & emailText & return & "EMLEOF"
+			my logBoth("  [" & idx & "] (via text) " & fileName, logFile)
 			return true
 		on error txtErr
-			my writeLog("FAILED " & idx & " (" & messageSubject & "): " & txtErr, logFile)
+			my logBoth("FAILED " & idx & " (" & messageSubject & "): " & txtErr, logFile)
 			return false
 		end try
 	end tell
@@ -196,8 +228,9 @@ on zeroPad(n)
 	end if
 end zeroPad
 
-on writeLog(logText, logFile)
+on logBoth(logText, logFile)
+	log logText
 	try
 		do shell script "echo " & quoted form of ((current date) as string) & "': '" & quoted form of logText & " >> " & quoted form of logFile
 	end try
-end writeLog
+end logBoth
