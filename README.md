@@ -7,9 +7,9 @@ AppleScript-based tool to export emails from Microsoft Outlook on macOS as `.eml
 | Script | Description |
 |--------|-------------|
 | `message_count_log.scpt` | Counts total messages and logs to `~/Desktop/message_count.log` |
-| `export_all_eml_fixed.scpt` | Basic export of all messages to `~/Desktop/Outlook_EML_Export/` |
-| `export_all_eml_enhanced.scpt` | Robust export with 3 fallback methods and logging |
-| `export_eml_by_month.scpt` | Date-filtered export organized into `YYYY/MM/` folders |
+| `export_all_eml_fixed.scpt` | Early version — single export method, no logging, uses loop index for filename uniqueness |
+| `export_all_eml_enhanced.scpt` | Improved version — adds 3 fallback export methods, log file (`export_log.txt`), per-message error handling, failure counting, property access guarding, message `id` in filenames for uniqueness, and more thorough filename cleaning (`"` and `'` removal) |
+| `export_eml_by_month.scpt` | Latest version — builds on enhanced with command-line year/month filtering and `YYYY/MM/` folder organization |
 
 ## Usage
 
