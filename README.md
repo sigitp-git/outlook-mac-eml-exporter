@@ -1,6 +1,6 @@
 # Outlook Mac EML Exporter
 
-AppleScript-based tool to export emails from Microsoft Outlook on macOS as `.eml` files. Works with corporate Microsoft 365 accounts where IMAP, Azure portal, and app passwords are disabled.
+AppleScript-based tool to export emails from Microsoft Outlook on macOS as `.eml` files. Works with Microsoft 365 accounts where IMAP, Azure portal, and app passwords are disabled. The scripts load locally cached/stored emails on Mac. If the emails are not cached/stored locally on Mac, the scripts doesn't work.
 
 ## Scripts
 
