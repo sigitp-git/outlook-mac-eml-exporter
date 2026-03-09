@@ -9,7 +9,7 @@ AppleScript-based tool to export emails from Microsoft Outlook on macOS as `.eml
 | `message_count_log.scpt` | Counts total messages and logs to `~/Desktop/message_count.log` |
 | `export_all_eml_fixed.scpt` | Early version — single export method, no logging, uses loop index for filename uniqueness |
 | `export_all_eml_enhanced.scpt` | Improved version — adds 3 fallback export methods, log file (`export_log.txt`), per-message error handling, failure counting, property access guarding, message `id` in filenames for uniqueness, and more thorough filename cleaning (`"` and `'` removal) |
-| `export_eml_by_month.scpt` | Latest version — builds on enhanced with command-line year/month filtering and `YYYY/MM/` folder organization |
+| `export_eml_by_month.scpt` | Latest version — builds on enhanced with command-line year/month filtering, `YYYY/MM/` folder organization, scans all folders (Inbox, Sent Items, etc.) across all Exchange accounts, and prefixes folder name in filenames |
 
 ## Usage
 
@@ -39,17 +39,28 @@ osascript ~/export_all_eml_enhanced.scpt
 
 ## Output Structure
 
+`export_eml_by_month.scpt` scans all mail folders across all Exchange accounts (Inbox, Sent Items, Drafts, etc.) and organizes emails by date. The folder name is prefixed in each filename so you can tell where the email came from:
+
 ```
 ~/Desktop/Outlook_EML_Export/
   2025/
     01/
-      Meeting_notes_12345.eml
-      Project_update_12346.eml
+      Inbox_Meeting_notes_12345.eml
+      Sent Items_Reply_to_John_12346.eml
     02/
-      Weekly_report_12400.eml
+      Inbox_Weekly_report_12400.eml
+      Sent Items_Project_update_12401.eml
 ```
 
-A log file is written to `~/Desktop/export_log.txt` with progress and any errors.
+Real-time progress is logged to the terminal and to `~/Desktop/export_log.txt`:
+
+```
+Scanning folder: account/Inbox (5000 messages)
+  [1] Inbox_Meeting_notes_12345.eml
+  [2] Inbox_Project_update_12346.eml
+Scanning folder: account/Sent Items (3000 messages)
+  [5001] Sent Items_Reply_to_John_12500.eml
+```
 
 ## Export Fallback Methods
 
